@@ -207,15 +207,27 @@ status_text_placeholder_top = st.empty()
 
 st.markdown("---") # Separator before file list
 
-# --- Interactive File List (Unchanged) ---
+# --- Interactive File List ---
 st.subheader(f"Files in Processing Order ({len(st.session_state.ordered_files)}):")
 if not st.session_state.ordered_files:
     st.info("Use the uploader above to add files. They will appear here for ordering.")
 else:
-    # Header/Rows (Unchanged)
+    # Header/Rows (Syntax Corrected)
     col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([0.5, 5, 1, 1, 1])
-    with col_h1: st.markdown("**#**"); with col_h2: st.markdown("**Filename**")
-    with col_h3: st.markdown("**Up**"); with col_h4: st.markdown("**Down**"); with col_h5: st.markdown("**Remove**")
+    # --- SYNTAX FIX START ---
+    with col_h1:
+        st.markdown("**#**")
+    with col_h2:
+        st.markdown("**Filename**")
+    with col_h3:
+        st.markdown("**Up**")
+    with col_h4:
+        st.markdown("**Down**")
+    with col_h5:
+        st.markdown("**Remove**")
+    # --- SYNTAX FIX END ---
+
+    # File rows (Unchanged)
     for i, file in enumerate(st.session_state.ordered_files):
         col1, col2, col3, col4, col5 = st.columns([0.5, 5, 1, 1, 1])
         with col1: st.write(f"{i+1}"); with col2: st.write(file.name)
@@ -507,4 +519,3 @@ if not st.session_state.ordered_files and not st.session_state.processing_starte
 # --- Footer (Unchanged) ---
 st.markdown("---")
 st.markdown("Developed with Streamlit, Google Gemini, and Google Cloud Vision.")
-

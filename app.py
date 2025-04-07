@@ -212,9 +212,8 @@ st.subheader(f"Files in Processing Order ({len(st.session_state.ordered_files)})
 if not st.session_state.ordered_files:
     st.info("Use the uploader above to add files. They will appear here for ordering.")
 else:
-    # Header/Rows (Syntax Corrected)
+    # Header/Rows (Syntax Corrected in previous step)
     col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([0.5, 5, 1, 1, 1])
-    # --- SYNTAX FIX START ---
     with col_h1:
         st.markdown("**#**")
     with col_h2:
@@ -225,16 +224,26 @@ else:
         st.markdown("**Down**")
     with col_h5:
         st.markdown("**Remove**")
-    # --- SYNTAX FIX END ---
 
-    # File rows (Unchanged)
+    # File rows loop
     for i, file in enumerate(st.session_state.ordered_files):
         col1, col2, col3, col4, col5 = st.columns([0.5, 5, 1, 1, 1])
-        with col1: st.write(f"{i+1}"); with col2: st.write(file.name)
-        with col3: st.button("⬆️", key=f"up_{i}", on_click=move_file, args=(i, -1), disabled=(i == 0), help="Move Up")
-        with col4: st.button("⬇️", key=f"down_{i}", on_click=move_file, args=(i, 1), disabled=(i == len(st.session_state.ordered_files) - 1), help="Move Down")
-        with col5: st.button("❌", key=f"del_{i}", on_click=remove_file, args=(i,), help="Remove")
+        # --- SYNTAX FIX START (Line 233 area) ---
+        with col1:
+            st.write(f"{i+1}") # Corrected: Indented under col1
+        with col2:
+            st.write(file.name) # Corrected: Indented under col2
+        # --- SYNTAX FIX END ---
+        with col3: # These were okay, but ensuring consistency
+            st.button("⬆️", key=f"up_{i}", on_click=move_file, args=(i, -1), disabled=(i == 0), help="Move Up")
+        with col4: # These were okay
+            st.button("⬇️", key=f"down_{i}", on_click=move_file, args=(i, 1), disabled=(i == len(st.session_state.ordered_files) - 1), help="Move Down")
+        with col5: # These were okay
+            st.button("❌", key=f"del_{i}", on_click=remove_file, args=(i,), help="Remove")
+
+    # Clear all button (Unchanged)
     st.button("🗑️ Remove All Files", key="remove_all_button", on_click=clear_all_files_callback, help="Click to remove all files from the list.", type="secondary")
+
 
 st.markdown("---") # Separator after file list
 
@@ -519,3 +528,4 @@ if not st.session_state.ordered_files and not st.session_state.processing_starte
 # --- Footer (Unchanged) ---
 st.markdown("---")
 st.markdown("Developed with Streamlit, Google Gemini, and Google Cloud Vision.")
+

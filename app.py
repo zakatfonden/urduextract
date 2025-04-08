@@ -1,4 +1,4 @@
-# app.py (Modified for Merge-then-Split Workflow, Timer Estimate Updated)
+# app.py (Modified based on user request)
 
 import streamlit as st
 import backend  # Assumes backend.py is in the same directory
@@ -11,10 +11,11 @@ import time # For calculating estimates
 # Configure basic logging if needed
 # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Streamlit Page Configuration (Kept from previous request) ---
+# --- Streamlit Page Configuration ---
 st.set_page_config(
     page_title="Urdu extraction",
-    page_icon="📄",
+    # CHANGE 2: Updated page icon to a light blue book
+    page_icon="📘",
     layout="wide"
 )
 
@@ -107,8 +108,8 @@ def create_zip_buffer(results_list):
     return zip_buffer
 
 # --- Page Title & Description (Kept from previous request) ---
-st.title("📄 Urdu extraction - PDF to Word Converter")
-st.markdown("Upload PDF files (Urdu or Arabic script recommended), arrange order, process, merge, split into ~10-page parts, and download as a ZIP archive.") # Updated description
+st.title("📘 Urdu extraction - PDF to Word Converter") # Updated icon here too
+st.markdown("Upload PDF files (Urdu or Arabic script recommended), arrange order, process, merge, split into ~8-page parts, and download as a ZIP archive.") # Updated description for page count
 
 # --- Sidebar (Kept from previous request - API Key, Model Select, Rules) ---
 st.sidebar.header("⚙️ Configuration")
@@ -132,14 +133,17 @@ model_options = {
     "Gemini 1.5 Flash (Fastest, Cost-Effective)": "gemini-1.5-flash-latest",
     "Gemini 1.5 Pro (Advanced, Slower, Higher Cost)": "gemini-1.5-pro-latest",
 }
-pro_model_key = "Gemini 1.5 Pro (Advanced, Slower, Higher Cost)"
-pro_model_index = list(model_options.keys()).index(pro_model_key) if pro_model_key in model_options else 0
+# CHANGE 1: Default to Gemini Flash
+flash_model_key = "Gemini 1.5 Flash (Fastest, Cost-Effective)"
+# Calculate the index of the Flash model, defaulting to 0 if not found (shouldn't happen)
+flash_model_index = list(model_options.keys()).index(flash_model_key) if flash_model_key in model_options else 0
 selected_model_display_name = st.sidebar.selectbox(
     "Choose the Gemini model for processing:",
     options=list(model_options.keys()),
-    index=pro_model_index, # Default Pro
+    # Use the calculated index for Flash as the default
+    index=flash_model_index,
     key="gemini_model_select",
-    help="Select the AI model. Pro is more capable but slower and costs more."
+    help="Select the AI model. Flash is faster and cheaper. Pro is more capable but slower and costs more." # Updated help text slightly
 )
 selected_model_id = model_options[selected_model_display_name]
 st.sidebar.caption(f"Selected model ID: `{selected_model_id}`")
@@ -147,13 +151,12 @@ st.sidebar.caption(f"Selected model ID: `{selected_model_id}`")
 # Extraction Rules
 st.sidebar.markdown("---")
 st.sidebar.header("📜 Extraction Rules")
-# Default Rules Text (Kept from previous request)
-default_rules = """Remove footnotes.
-Identify and Completely Remove the header: Find the entire original top line of the page. This usually includes a page number and a title/heading (like كتاب الزكاة ), also content that may exist above the top line. All of this must be removed.
+# CHANGE 5: Updated default rules text
+default_rules = """Identify and Completely Remove the header: Find the entire original top line of the page. This usually includes a page number and a title/heading (like كتاب الزكاة ), also content that may exist above the top line. All of this must be removed.
 Do not remove headings inside main body text.
 Structure the text into logical paragraphs based on the original document. Don't translate anything."""
 rules_prompt = st.sidebar.text_area(
-    "Enter the rules Gemini should follow:", value=default_rules, height=250,
+    "Enter the rules Gemini should follow:", value=default_rules, height=200, # Adjusted height slightly
     help="Provide clear instructions for how Gemini should process the extracted text."
 )
 # --- End Sidebar ---
@@ -309,7 +312,8 @@ if process_button_top_clicked or process_button_bottom_clicked:
 
         total_files = len(st.session_state.ordered_files)
         # --- UPDATED TIMER ESTIMATE ---
-        TIME_PER_PDF_ESTIMATE_S = 20 # Estimate in seconds (CHANGED from 200)
+        # CHANGE 3: Updated timer estimate per PDF
+        TIME_PER_PDF_ESTIMATE_S = 15 # Estimate in seconds (CHANGED from 20)
         # ---
 
         # Initialize progress bars
@@ -398,11 +402,11 @@ if process_button_top_clicked or process_button_bottom_clicked:
                         intermediate_doc_streams.append((original_filename, word_doc_stream))
                         files_processed_ok_count += 1 # Count files that resulted in a stream for merging
                         with results_container:
-                             success_msg = f"✅ Created intermediate Word file for merging."
-                             if gemini_error_occurred: success_msg += " (Used placeholder due to Gemini error)"
-                             elif not processed_text and raw_text and raw_text.strip(): success_msg += " (Used placeholder as Gemini result was empty)"
-                             elif not processed_text and (not raw_text or not raw_text.strip()): success_msg += " (Based on empty extracted text)"
-                             st.success(success_msg)
+                            success_msg = f"✅ Created intermediate Word file for merging."
+                            if gemini_error_occurred: success_msg += " (Used placeholder due to Gemini error)"
+                            elif not processed_text and raw_text and raw_text.strip(): success_msg += " (Used placeholder as Gemini result was empty)"
+                            elif not processed_text and (not raw_text or not raw_text.strip()): success_msg += " (Based on empty extracted text)"
+                            st.success(success_msg)
                     else:
                         word_creation_error_occurred = True
                         with results_container: st.error(f"❌ Failed to create intermediate Word file (backend returned None).")
@@ -447,7 +451,8 @@ if process_button_top_clicked or process_button_bottom_clicked:
         if merged_doc_buffer:
             current_step = total_files + 2
             progress_value = current_step / total_steps
-            split_status_text = "Splitting merged document into parts (approx. 10 pages each)..."
+            # Updated split status text to mention ~8 pages
+            split_status_text = "Splitting merged document into parts (approx. 8 pages each)..."
             progress_bar_top.progress(progress_value, text=split_status_text)
             progress_bar_bottom.progress(progress_value, text=split_status_text)
             status_text_placeholder_top.info(f"✂️ {split_status_text}")
@@ -456,8 +461,10 @@ if process_button_top_clicked or process_button_bottom_clicked:
             with results_container: st.markdown("---"); st.info(f"✂️ {split_status_text}")
 
             try:
-                # Use the new backend function - adjust paragraphs_per_split if needed
-                split_results_final = backend.split_word_document(merged_doc_buffer, paragraphs_per_split=75)
+                # CHANGE 4: Updated paragraphs_per_split to target ~8 pages
+                # Assuming ~75 paragraphs was ~10 pages, ~60 paragraphs should be ~8 pages
+                paragraphs_to_target_8_pages = 60
+                split_results_final = backend.split_word_document(merged_doc_buffer, paragraphs_per_split=paragraphs_to_target_8_pages)
                 st.session_state.split_results = split_results_final # Store in session state
                 st.session_state.split_files_count = len(split_results_final)
 
@@ -528,4 +535,3 @@ if not st.session_state.ordered_files and not st.session_state.processing_starte
 # --- Footer (Unchanged) ---
 st.markdown("---")
 st.markdown("Developed with Streamlit, Google Gemini, and Google Cloud Vision.")
-

@@ -1,4 +1,4 @@
-# app.py (Modified based on user request for ZIP filename)
+# app.py (Modified with updated default rules and previous zip filename change)
 
 import streamlit as st
 import backend  # Assumes backend.py is in the same directory
@@ -27,7 +27,7 @@ default_state = {
     'processing_complete': False,
     'processing_started': False,
     'ordered_files': [],
-    'zip_filename': "split_urdu_documents.zip", # <<< CHANGE: Added default zip filename
+    'zip_filename': "split_urdu_documents.zip", # Default zip filename
 }
 for key, value in default_state.items():
     if key not in st.session_state:
@@ -42,7 +42,7 @@ def reset_processing_state():
     st.session_state.split_files_count = 0
     st.session_state.processing_complete = False
     st.session_state.processing_started = False
-    st.session_state.zip_filename = "split_urdu_documents.zip" # <<< CHANGE: Reset zip filename to default
+    st.session_state.zip_filename = "split_urdu_documents.zip" # Reset zip filename to default
 
 # move_file (Unchanged)
 def move_file(index, direction):
@@ -109,7 +109,7 @@ def create_zip_buffer(results_list):
 st.title("📘 Urdu extraction - PDF to Word Converter")
 st.markdown("Upload PDF files (Urdu or Arabic script recommended), arrange order, process, merge, split into ~8-page parts, and download as a ZIP archive.")
 
-# --- Sidebar (Unchanged) ---
+# --- Sidebar ---
 st.sidebar.header("⚙️ Configuration")
 # API Key Input
 api_key_from_secrets = st.secrets.get("GEMINI_API_KEY", "")
@@ -145,7 +145,9 @@ st.sidebar.caption(f"Selected model ID: `{selected_model_id}`")
 # Extraction Rules
 st.sidebar.markdown("---")
 st.sidebar.header("📜 Extraction Rules")
-default_rules = """Identify and Completely Remove the header: Find the entire original top line of the page. This usually includes a page number and a title/heading (like كتاب الزكاة ), also content that may exist above the top line. All of this must be removed.
+# <<< CHANGE: Updated default rules based on user request >>>
+default_rules = """Remove the header.
+Identify and Completely Remove the header: Find the entire original top line of the page. This usually includes a page number and a title/heading (like كتاب الزكاة ), also content that may exist above the top line. All of this must be removed.
 Do not remove headings inside main body text.
 Structure the text into logical paragraphs based on the original document. Don't translate anything."""
 rules_prompt = st.sidebar.text_area(
@@ -182,12 +184,12 @@ with col_b1_top:
 
 with col_b2_top:
     # Download button for the ZIP of SPLIT files
-    # <<< CHANGE: Use st.session_state.zip_filename for file_name >>>
+    # Uses dynamic zip filename from session state
     if st.session_state.zip_buffer and not st.session_state.processing_started and st.session_state.zip_filename:
         st.download_button(
             label=f"📥 Download All ({st.session_state.split_files_count}) Split Files (.zip)",
             data=st.session_state.zip_buffer,
-            file_name=st.session_state.zip_filename, # <<< CHANGED
+            file_name=st.session_state.zip_filename, # Uses dynamic name
             mime="application/zip",
             key="download_zip_button_top",
             use_container_width=True
@@ -245,12 +247,12 @@ with col_b1_bottom:
 
 with col_b2_bottom:
     # Download button for the ZIP of SPLIT files
-    # <<< CHANGE: Use st.session_state.zip_filename for file_name >>>
+    # Uses dynamic zip filename from session state
     if st.session_state.zip_buffer and not st.session_state.processing_started and st.session_state.zip_filename:
         st.download_button(
             label=f"📥 Download All ({st.session_state.split_files_count}) Split Files (.zip)",
             data=st.session_state.zip_buffer,
-            file_name=st.session_state.zip_filename, # <<< CHANGED
+            file_name=st.session_state.zip_filename, # Uses dynamic name
             mime="application/zip",
             key="download_zip_button_bottom",
             use_container_width=True
@@ -281,15 +283,20 @@ if process_button_top_clicked or process_button_bottom_clicked:
         st.error("❌ Please enter or configure your Gemini API Key in the sidebar.")
         st.session_state.processing_started = False
     elif not rules_prompt:
-        st.warning("⚠️ The 'Extraction Rules' field is empty. Processing with default model behavior might be less predictable.")
+        # Use the default rules if the text area is somehow empty
+        # (though it's initialized with the default)
+        st.warning("⚠️ The 'Extraction Rules' field was empty. Using default rules.")
+        active_rules_prompt = default_rules # Use the default defined above
     elif not selected_model_id:
         st.error("❌ No Gemini model selected in the sidebar.")
         st.session_state.processing_started = False
+    else:
+        active_rules_prompt = rules_prompt # Use rules from text area
 
     # Proceed only if checks passed
     if st.session_state.ordered_files and api_key and st.session_state.processing_started and selected_model_id:
 
-        # <<< CHANGE: Determine dynamic zip filename from first file >>>
+        # Determine dynamic zip filename from first file
         try:
             first_file_name = st.session_state.ordered_files[0].name
             base_name = os.path.splitext(first_file_name)[0]
@@ -361,7 +368,8 @@ if process_button_top_clicked or process_button_bottom_clicked:
                 status_text_placeholder_top.info(f"🤖 Sending text to Gemini ({selected_model_display_name})...")
                 status_text_placeholder_bottom.info(f"🤖 Sending text to Gemini ({selected_model_display_name})...")
                 try:
-                    processed_text_result = backend.process_text_with_gemini(api_key, raw_text, rules_prompt, selected_model_id)
+                    # Use active_rules_prompt determined earlier
+                    processed_text_result = backend.process_text_with_gemini(api_key, raw_text, active_rules_prompt, selected_model_id)
                     if processed_text_result is None: raise ValueError("Backend Gemini processing returned None")
                     if isinstance(processed_text_result, str) and processed_text_result.startswith("Error:"):
                         with results_container: st.error(f"❌ Gemini processing error: {processed_text_result}")
@@ -375,7 +383,6 @@ if process_button_top_clicked or process_button_bottom_clicked:
                     gemini_error_occurred = True; processed_text = "" # Fallback to empty
 
             # 3. Create Intermediate Word Document
-            # Always attempt if extraction didn't fail critically, even with empty/error processed_text
             if not extraction_error:
                 status_text_placeholder_top.info(f"📝 Creating intermediate Word doc for {current_file_status}...")
                 status_text_placeholder_bottom.info(f"📝 Creating intermediate Word doc for {current_file_status}...")
@@ -466,7 +473,8 @@ if process_button_top_clicked or process_button_bottom_clicked:
                 zip_buffer_final = create_zip_buffer(split_results_final)
                 if zip_buffer_final:
                     st.session_state.zip_buffer = zip_buffer_final # Store for download
-                    final_status_message = f"✅ Processing complete! Generated {st.session_state.split_files_count} split Word file(s). Click 'Download All' (using name '{st.session_state.zip_filename}') above or below." # <<< CHANGED message slightly
+                    # Updated message to mention the dynamic zip filename
+                    final_status_message = f"✅ Processing complete! Generated {st.session_state.split_files_count} split Word file(s). Click 'Download All' (using name '{st.session_state.zip_filename}') above or below."
                     with results_container: st.success(final_status_message)
                     rerun_needed = True # Rerun to show download buttons
                 else:

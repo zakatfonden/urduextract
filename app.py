@@ -1,4 +1,4 @@
-# app.py (Modified based on user request)
+# app.py (Modified based on user request for ZIP filename)
 
 import streamlit as st
 import backend  # Assumes backend.py is in the same directory
@@ -14,22 +14,20 @@ import time # For calculating estimates
 # --- Streamlit Page Configuration ---
 st.set_page_config(
     page_title="Urdu extraction",
-    # CHANGE 2: Updated page icon to a light blue book
-    page_icon="📘",
+    page_icon="📘", # Changed icon
     layout="wide"
 )
 
 # --- Initialize Session State ---
 default_state = {
-    # 'merged_doc_buffer': None, # No longer stored long-term
-    # 'individual_results': [], # Renamed for clarity
-    'split_results': [], # NEW: List to store {'filename': 'split_N.docx', 'buffer': BytesIO_obj} from splitting
-    'zip_buffer': None, # Buffer for the downloadable zip file of split docs
-    'files_processed_count': 0, # Counts original PDFs processed
-    'split_files_count': 0, # Counts final split docx files generated
+    'split_results': [],
+    'zip_buffer': None,
+    'files_processed_count': 0,
+    'split_files_count': 0,
     'processing_complete': False,
     'processing_started': False,
-    'ordered_files': [],  # List to hold UploadedFile objects in custom order
+    'ordered_files': [],
+    'zip_filename': "split_urdu_documents.zip", # <<< CHANGE: Added default zip filename
 }
 for key, value in default_state.items():
     if key not in st.session_state:
@@ -38,12 +36,13 @@ for key, value in default_state.items():
 # --- Helper Functions ---
 def reset_processing_state():
     """Resets state related to processing results and status."""
-    st.session_state.split_results = [] # NEW
+    st.session_state.split_results = []
     st.session_state.zip_buffer = None
     st.session_state.files_processed_count = 0
-    st.session_state.split_files_count = 0 # NEW
+    st.session_state.split_files_count = 0
     st.session_state.processing_complete = False
     st.session_state.processing_started = False
+    st.session_state.zip_filename = "split_urdu_documents.zip" # <<< CHANGE: Reset zip filename to default
 
 # move_file (Unchanged)
 def move_file(index, direction):
@@ -53,7 +52,7 @@ def move_file(index, direction):
     if not (0 <= new_index < len(files)): return
     files[index], files[new_index] = files[new_index], files[index]
     st.session_state.ordered_files = files
-    reset_processing_state()
+    reset_processing_state() # Reset results if order changes
 
 # remove_file (Unchanged)
 def remove_file(index):
@@ -62,7 +61,7 @@ def remove_file(index):
         removed_file = files.pop(index)
         st.toast(f"Removed '{removed_file.name}'.")
         st.session_state.ordered_files = files
-        reset_processing_state()
+        reset_processing_state() # Reset results if file removed
     else:
         st.warning(f"Could not remove file at index {index} (already removed or invalid?).")
 
@@ -78,7 +77,7 @@ def handle_uploads():
                 new_files_added_count += 1
         if new_files_added_count > 0:
             st.toast(f"Added {new_files_added_count} new file(s) to the end of the list.")
-            reset_processing_state()
+            reset_processing_state() # Reset results if new files added
 
 # clear_all_files_callback (Unchanged)
 def clear_all_files_callback():
@@ -88,7 +87,7 @@ def clear_all_files_callback():
     reset_processing_state()
     st.toast("Removed all files from the list.")
 
-# --- Create Zip Buffer Helper (Unchanged from previous request) ---
+# --- Create Zip Buffer Helper (Unchanged) ---
 def create_zip_buffer(results_list):
     """Creates a zip file in memory containing multiple docx files."""
     if not results_list:
@@ -102,18 +101,16 @@ def create_zip_buffer(results_list):
                 buffer.seek(0)
                 zipf.writestr(filename, buffer.getvalue())
             else:
-                # Use a generic warning if original_pdf_name isn't available in the item
                 logging.warning(f"Skipping item in zip creation due to missing filename or buffer.")
     zip_buffer.seek(0)
     return zip_buffer
 
-# --- Page Title & Description (Kept from previous request) ---
-st.title("📘 Urdu extraction - PDF to Word Converter") # Updated icon here too
-st.markdown("Upload PDF files (Urdu or Arabic script recommended), arrange order, process, merge, split into ~8-page parts, and download as a ZIP archive.") # Updated description for page count
+# --- Page Title & Description (Unchanged) ---
+st.title("📘 Urdu extraction - PDF to Word Converter")
+st.markdown("Upload PDF files (Urdu or Arabic script recommended), arrange order, process, merge, split into ~8-page parts, and download as a ZIP archive.")
 
-# --- Sidebar (Kept from previous request - API Key, Model Select, Rules) ---
+# --- Sidebar (Unchanged) ---
 st.sidebar.header("⚙️ Configuration")
-
 # API Key Input
 api_key_from_secrets = st.secrets.get("GEMINI_API_KEY", "")
 api_key = st.sidebar.text_input(
@@ -133,17 +130,14 @@ model_options = {
     "Gemini 1.5 Flash (Fastest, Cost-Effective)": "gemini-1.5-flash-latest",
     "Gemini 1.5 Pro (Advanced, Slower, Higher Cost)": "gemini-1.5-pro-latest",
 }
-# CHANGE 1: Default to Gemini Flash
 flash_model_key = "Gemini 1.5 Flash (Fastest, Cost-Effective)"
-# Calculate the index of the Flash model, defaulting to 0 if not found (shouldn't happen)
 flash_model_index = list(model_options.keys()).index(flash_model_key) if flash_model_key in model_options else 0
 selected_model_display_name = st.sidebar.selectbox(
     "Choose the Gemini model for processing:",
     options=list(model_options.keys()),
-    # Use the calculated index for Flash as the default
     index=flash_model_index,
     key="gemini_model_select",
-    help="Select the AI model. Flash is faster and cheaper. Pro is more capable but slower and costs more." # Updated help text slightly
+    help="Select the AI model. Flash is faster and cheaper. Pro is more capable but slower and costs more."
 )
 selected_model_id = model_options[selected_model_display_name]
 st.sidebar.caption(f"Selected model ID: `{selected_model_id}`")
@@ -151,12 +145,11 @@ st.sidebar.caption(f"Selected model ID: `{selected_model_id}`")
 # Extraction Rules
 st.sidebar.markdown("---")
 st.sidebar.header("📜 Extraction Rules")
-# CHANGE 5: Updated default rules text
 default_rules = """Identify and Completely Remove the header: Find the entire original top line of the page. This usually includes a page number and a title/heading (like كتاب الزكاة ), also content that may exist above the top line. All of this must be removed.
 Do not remove headings inside main body text.
 Structure the text into logical paragraphs based on the original document. Don't translate anything."""
 rules_prompt = st.sidebar.text_area(
-    "Enter the rules Gemini should follow:", value=default_rules, height=200, # Adjusted height slightly
+    "Enter the rules Gemini should follow:", value=default_rules, height=200,
     help="Provide clear instructions for how Gemini should process the extracted text."
 )
 # --- End Sidebar ---
@@ -180,9 +173,8 @@ st.subheader("🚀 Actions & Progress (Top)")
 col_b1_top, col_b2_top = st.columns([3, 2])
 
 with col_b1_top:
-    # Label reflects the overall process now
     process_button_top_clicked = st.button(
-        "✨ Process, Merge & Split Files (Top)", # CHANGED Label
+        "✨ Process, Merge & Split Files (Top)",
         key="process_button_top",
         use_container_width=True, type="primary",
         disabled=st.session_state.processing_started or not st.session_state.ordered_files
@@ -190,11 +182,12 @@ with col_b1_top:
 
 with col_b2_top:
     # Download button for the ZIP of SPLIT files
-    if st.session_state.zip_buffer and not st.session_state.processing_started:
+    # <<< CHANGE: Use st.session_state.zip_filename for file_name >>>
+    if st.session_state.zip_buffer and not st.session_state.processing_started and st.session_state.zip_filename:
         st.download_button(
-            label=f"📥 Download All ({st.session_state.split_files_count}) Split Files (.zip)", # CHANGED Label
+            label=f"📥 Download All ({st.session_state.split_files_count}) Split Files (.zip)",
             data=st.session_state.zip_buffer,
-            file_name="split_urdu_documents.zip", # CHANGED Filename
+            file_name=st.session_state.zip_filename, # <<< CHANGED
             mime="application/zip",
             key="download_zip_button_top",
             use_container_width=True
@@ -202,7 +195,7 @@ with col_b2_top:
     elif st.session_state.processing_started:
         st.info("Processing in progress...", icon="⏳")
     else:
-        st.markdown("*(Download button for ZIP of split files appears here)*") # CHANGED Placeholder Text
+        st.markdown("*(Download button for ZIP of split files appears here)*")
 
 # Placeholders for top progress indicators
 progress_bar_placeholder_top = st.empty()
@@ -210,41 +203,29 @@ status_text_placeholder_top = st.empty()
 
 st.markdown("---") # Separator before file list
 
-# --- Interactive File List ---
+# --- Interactive File List (Unchanged) ---
 st.subheader(f"Files in Processing Order ({len(st.session_state.ordered_files)}):")
 if not st.session_state.ordered_files:
     st.info("Use the uploader above to add files. They will appear here for ordering.")
 else:
-    # Header/Rows (Syntax Corrected in previous step)
+    # Header/Rows
     col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([0.5, 5, 1, 1, 1])
-    with col_h1:
-        st.markdown("**#**")
-    with col_h2:
-        st.markdown("**Filename**")
-    with col_h3:
-        st.markdown("**Up**")
-    with col_h4:
-        st.markdown("**Down**")
-    with col_h5:
-        st.markdown("**Remove**")
+    with col_h1: st.markdown("**#**")
+    with col_h2: st.markdown("**Filename**")
+    with col_h3: st.markdown("**Up**")
+    with col_h4: st.markdown("**Down**")
+    with col_h5: st.markdown("**Remove**")
 
     # File rows loop
     for i, file in enumerate(st.session_state.ordered_files):
         col1, col2, col3, col4, col5 = st.columns([0.5, 5, 1, 1, 1])
-        # --- SYNTAX FIX START (Line 233 area) ---
-        with col1:
-            st.write(f"{i+1}") # Corrected: Indented under col1
-        with col2:
-            st.write(file.name) # Corrected: Indented under col2
-        # --- SYNTAX FIX END ---
-        with col3: # These were okay, but ensuring consistency
-            st.button("⬆️", key=f"up_{i}", on_click=move_file, args=(i, -1), disabled=(i == 0), help="Move Up")
-        with col4: # These were okay
-            st.button("⬇️", key=f"down_{i}", on_click=move_file, args=(i, 1), disabled=(i == len(st.session_state.ordered_files) - 1), help="Move Down")
-        with col5: # These were okay
-            st.button("❌", key=f"del_{i}", on_click=remove_file, args=(i,), help="Remove")
+        with col1: st.write(f"{i+1}")
+        with col2: st.write(file.name)
+        with col3: st.button("⬆️", key=f"up_{i}", on_click=move_file, args=(i, -1), disabled=(i == 0), help="Move Up")
+        with col4: st.button("⬇️", key=f"down_{i}", on_click=move_file, args=(i, 1), disabled=(i == len(st.session_state.ordered_files) - 1), help="Move Down")
+        with col5: st.button("❌", key=f"del_{i}", on_click=remove_file, args=(i,), help="Remove")
 
-    # Clear all button (Unchanged)
+    # Clear all button
     st.button("🗑️ Remove All Files", key="remove_all_button", on_click=clear_all_files_callback, help="Click to remove all files from the list.", type="secondary")
 
 
@@ -256,7 +237,7 @@ col_b1_bottom, col_b2_bottom = st.columns([3, 2])
 
 with col_b1_bottom:
     process_button_bottom_clicked = st.button(
-        "✨ Process, Merge & Split Files (Bottom)", # CHANGED Label
+        "✨ Process, Merge & Split Files (Bottom)",
         key="process_button_bottom",
         use_container_width=True, type="primary",
         disabled=st.session_state.processing_started or not st.session_state.ordered_files
@@ -264,11 +245,12 @@ with col_b1_bottom:
 
 with col_b2_bottom:
     # Download button for the ZIP of SPLIT files
-    if st.session_state.zip_buffer and not st.session_state.processing_started:
+    # <<< CHANGE: Use st.session_state.zip_filename for file_name >>>
+    if st.session_state.zip_buffer and not st.session_state.processing_started and st.session_state.zip_filename:
         st.download_button(
-            label=f"📥 Download All ({st.session_state.split_files_count}) Split Files (.zip)", # CHANGED Label
+            label=f"📥 Download All ({st.session_state.split_files_count}) Split Files (.zip)",
             data=st.session_state.zip_buffer,
-            file_name="split_urdu_documents.zip", # CHANGED Filename
+            file_name=st.session_state.zip_filename, # <<< CHANGED
             mime="application/zip",
             key="download_zip_button_bottom",
             use_container_width=True
@@ -276,7 +258,7 @@ with col_b2_bottom:
     elif st.session_state.processing_started:
         st.info("Processing in progress...", icon="⏳")
     else:
-        st.markdown("*(Download button for ZIP of split files appears here)*") # CHANGED Placeholder Text
+        st.markdown("*(Download button for ZIP of split files appears here)*")
 
 # Placeholders for bottom progress indicators
 progress_bar_placeholder_bottom = st.empty()
@@ -288,7 +270,7 @@ results_container = st.container()
 
 # --- Processing Logic ---
 if process_button_top_clicked or process_button_bottom_clicked:
-    reset_processing_state()
+    reset_processing_state() # Reset includes zip_filename to default initially
     st.session_state.processing_started = True
 
     # Re-check conditions (Unchanged checks)
@@ -307,42 +289,42 @@ if process_button_top_clicked or process_button_bottom_clicked:
     # Proceed only if checks passed
     if st.session_state.ordered_files and api_key and st.session_state.processing_started and selected_model_id:
 
+        # <<< CHANGE: Determine dynamic zip filename from first file >>>
+        try:
+            first_file_name = st.session_state.ordered_files[0].name
+            base_name = os.path.splitext(first_file_name)[0]
+            st.session_state.zip_filename = f"{base_name}.zip"
+            logging.info(f"Set output ZIP filename to: {st.session_state.zip_filename}")
+        except Exception as e:
+            logging.error(f"Could not determine filename from first file: {e}. Using default.")
+            # Keep the default name set in reset_processing_state()
+
         # Store intermediate doc streams for merging
         intermediate_doc_streams = [] # List of tuples: (original_filename, BytesIO_buffer)
 
         total_files = len(st.session_state.ordered_files)
-        # --- UPDATED TIMER ESTIMATE ---
-        # CHANGE 3: Updated timer estimate per PDF
-        TIME_PER_PDF_ESTIMATE_S = 15 # Estimate in seconds (CHANGED from 20)
-        # ---
-
-        # Initialize progress bars
+        TIME_PER_PDF_ESTIMATE_S = 15 # Estimate in seconds
         total_steps = total_files + 2 # Add 2 steps for merge and split
         current_step = 0
 
         progress_bar_top = progress_bar_placeholder_top.progress(0, text="Starting processing...")
         progress_bar_bottom = progress_bar_placeholder_bottom.progress(0, text="Starting processing...")
-
-        # Clear previous results visually
-        results_container.empty()
+        results_container.empty() # Clear previous results visually
 
         # --- Stage 1: Process each file individually ---
         files_processed_ok_count = 0
         for i, file_to_process in enumerate(st.session_state.ordered_files):
             current_step = i + 1
             progress_value = current_step / total_steps
-
             original_filename = file_to_process.name
             current_file_status = f"'{original_filename}' ({i + 1}/{total_files})"
 
-            # Calculate Estimated Remaining Time (using updated estimate)
+            # Calculate Estimated Remaining Time
             remaining_files_in_stage = total_files - i
-            # Add fixed time for merge/split estimate (e.g., 10 seconds total)
-            remaining_time_estimate_s = remaining_files_in_stage * TIME_PER_PDF_ESTIMATE_S + 10
+            remaining_time_estimate_s = remaining_files_in_stage * TIME_PER_PDF_ESTIMATE_S + 10 # +10s for merge/split approx
             remaining_minutes = int(remaining_time_estimate_s // 60)
             remaining_seconds_part = int(remaining_time_estimate_s % 60)
             time_estimate_str = f"Est. time remaining: {remaining_minutes}m {remaining_seconds_part}s"
-
             progress_text = f"Processing {current_file_status}. {time_estimate_str}"
 
             # Update progress bars and status texts
@@ -357,19 +339,19 @@ if process_button_top_clicked or process_button_bottom_clicked:
             raw_text = None; processed_text = ""; word_doc_stream = None
             extraction_error = False; gemini_error_occurred = False; word_creation_error_occurred = False
 
-            # 1. Extract Text (Error handling as before)
+            # 1. Extract Text
             status_text_placeholder_top.info(f"📄 Extracting text from {current_file_status}...")
             status_text_placeholder_bottom.info(f"📄 Extracting text from {current_file_status}...")
             try:
                 file_to_process.seek(0)
                 raw_text = backend.extract_text_from_pdf(file_to_process)
-                if raw_text is None: raise ValueError("Backend extraction returned None") # Treat None as error
+                if raw_text is None: raise ValueError("Backend extraction returned None")
                 if isinstance(raw_text, str) and raw_text.startswith("Error:"):
                     with results_container: st.error(f"❌ Error extracting text: {raw_text}")
                     extraction_error = True
                 elif not raw_text or not raw_text.strip():
                     with results_container: st.warning(f"⚠️ No text extracted. Placeholder Word content will be used.")
-                    processed_text = ""
+                    processed_text = "" # Ensure processed_text is empty for placeholder logic
             except Exception as ext_exc:
                 with results_container: st.error(f"❌ Text extraction failed: {ext_exc}")
                 extraction_error = True
@@ -383,24 +365,25 @@ if process_button_top_clicked or process_button_bottom_clicked:
                     if processed_text_result is None: raise ValueError("Backend Gemini processing returned None")
                     if isinstance(processed_text_result, str) and processed_text_result.startswith("Error:"):
                         with results_container: st.error(f"❌ Gemini processing error: {processed_text_result}")
-                        gemini_error_occurred = True; processed_text = ""
+                        gemini_error_occurred = True; processed_text = "" # Fallback to empty
                     else:
                         processed_text = processed_text_result
                         if not processed_text.strip():
-                             with results_container: st.warning(f"⚠️ Gemini returned empty text.")
+                            with results_container: st.warning(f"⚠️ Gemini returned empty text.")
                 except Exception as gem_exc:
                     with results_container: st.error(f"❌ Gemini processing failed: {gem_exc}")
-                    gemini_error_occurred = True; processed_text = ""
+                    gemini_error_occurred = True; processed_text = "" # Fallback to empty
 
-            # 3. Create Intermediate Word Document (always attempt if extraction didn't fail critically)
+            # 3. Create Intermediate Word Document
+            # Always attempt if extraction didn't fail critically, even with empty/error processed_text
             if not extraction_error:
                 status_text_placeholder_top.info(f"📝 Creating intermediate Word doc for {current_file_status}...")
                 status_text_placeholder_bottom.info(f"📝 Creating intermediate Word doc for {current_file_status}...")
                 try:
-                    word_doc_stream = backend.create_word_document(processed_text) # Use potentially empty processed_text
+                    word_doc_stream = backend.create_word_document(processed_text) # Handles empty text internally
                     if word_doc_stream:
                         intermediate_doc_streams.append((original_filename, word_doc_stream))
-                        files_processed_ok_count += 1 # Count files that resulted in a stream for merging
+                        files_processed_ok_count += 1
                         with results_container:
                             success_msg = f"✅ Created intermediate Word file for merging."
                             if gemini_error_occurred: success_msg += " (Used placeholder due to Gemini error)"
@@ -416,8 +399,6 @@ if process_button_top_clicked or process_button_bottom_clicked:
             else:
                  with results_container: st.warning(f"ℹ️ Skipped intermediate Word file creation due to text extraction failure.")
 
-            # Update status text (optional - could show summary here)
-
         # --- End of file processing loop ---
         st.session_state.files_processed_count = files_processed_ok_count
 
@@ -431,7 +412,6 @@ if process_button_top_clicked or process_button_bottom_clicked:
             progress_bar_bottom.progress(progress_value, text=merge_status_text)
             status_text_placeholder_top.info(f"💾 {merge_status_text}")
             status_text_placeholder_bottom.info(f"💾 {merge_status_text}")
-
             with results_container: st.markdown("---"); st.info(f"💾 {merge_status_text}")
 
             try:
@@ -442,7 +422,7 @@ if process_button_top_clicked or process_button_bottom_clicked:
                      with results_container: st.success("✅ Intermediate documents merged successfully.")
             except Exception as merge_exc:
                 with results_container: st.error(f"❌ Document merging failed: {merge_exc}. Cannot proceed to splitting.")
-                merged_doc_buffer = None # Ensure it's None on error
+                merged_doc_buffer = None
         else:
             with results_container: st.warning("⚠️ No intermediate documents were created successfully. Skipping merge and split.")
 
@@ -451,31 +431,26 @@ if process_button_top_clicked or process_button_bottom_clicked:
         if merged_doc_buffer:
             current_step = total_files + 2
             progress_value = current_step / total_steps
-            # Updated split status text to mention ~8 pages
             split_status_text = "Splitting merged document into parts (approx. 8 pages each)..."
             progress_bar_top.progress(progress_value, text=split_status_text)
             progress_bar_bottom.progress(progress_value, text=split_status_text)
             status_text_placeholder_top.info(f"✂️ {split_status_text}")
             status_text_placeholder_bottom.info(f"✂️ {split_status_text}")
-
             with results_container: st.markdown("---"); st.info(f"✂️ {split_status_text}")
 
             try:
-                # CHANGE 4: Updated paragraphs_per_split to target ~8 pages
-                # Assuming ~75 paragraphs was ~10 pages, ~60 paragraphs should be ~8 pages
-                paragraphs_to_target_8_pages = 60
+                paragraphs_to_target_8_pages = 60 # Approx 60 paragraphs -> ~8 pages
                 split_results_final = backend.split_word_document(merged_doc_buffer, paragraphs_per_split=paragraphs_to_target_8_pages)
-                st.session_state.split_results = split_results_final # Store in session state
+                st.session_state.split_results = split_results_final
                 st.session_state.split_files_count = len(split_results_final)
 
                 if not split_results_final:
-                     with results_container: st.warning("⚠️ Splitting resulted in zero output files (check merged content or splitting logic).")
+                     with results_container: st.warning("⚠️ Splitting resulted in zero output files.")
                 else:
                      with results_container: st.success(f"✅ Merged document split into {st.session_state.split_files_count} part(s).")
-
             except Exception as split_exc:
                 with results_container: st.error(f"❌ Document splitting failed: {split_exc}")
-                split_results_final = [] # Ensure empty on error
+                split_results_final = []
         else:
              with results_container: st.info("ℹ️ Skipping splitting because merging failed or produced no output.")
 
@@ -491,7 +466,7 @@ if process_button_top_clicked or process_button_bottom_clicked:
                 zip_buffer_final = create_zip_buffer(split_results_final)
                 if zip_buffer_final:
                     st.session_state.zip_buffer = zip_buffer_final # Store for download
-                    final_status_message = f"✅ Processing complete! Generated {st.session_state.split_files_count} split Word file(s). Click 'Download All' above or below."
+                    final_status_message = f"✅ Processing complete! Generated {st.session_state.split_files_count} split Word file(s). Click 'Download All' (using name '{st.session_state.zip_filename}') above or below." # <<< CHANGED message slightly
                     with results_container: st.success(final_status_message)
                     rerun_needed = True # Rerun to show download buttons
                 else:
